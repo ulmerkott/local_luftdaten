@@ -27,7 +27,7 @@ import homeassistant.helpers.config_validation as cv
 from .const import *
 
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__package__)
 
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
@@ -153,9 +153,6 @@ class LuftdatenClient(object):
                 if self.data != None:
                     return
 
-            # Handle calltime differences: substract 5 second from current time
-            self.lastUpdate = datetime.datetime.now() - timedelta(seconds=5)
-
             # Query local device
             responseData = None
             try:
@@ -163,7 +160,6 @@ class LuftdatenClient(object):
                 with async_timeout.timeout(30, loop=self._loop):
                     response = await self._session.get(self._resource)
                 responseData = await response.text()
-                _LOGGER.debug("Received data: %s", str(self.data))
             except aiohttp.ClientError as err:
                 _LOGGER.warning("REST request error: {0}".format(err))
                 self.data = None
@@ -174,6 +170,7 @@ class LuftdatenClient(object):
                 raise LuftdatenError
 
             # Parse REST response
+            age = timedelta(seconds=0)
             try:
                 parsed_json = json.loads(responseData)
                 if not isinstance(parsed_json, dict):
@@ -182,8 +179,18 @@ class LuftdatenClient(object):
                     return
                 # Set parsed json as data
                 self.data = parsed_json
+                _LOGGER.debug("Received data: %s", str(self.data))
+                if self.data.get("age"):
+                    for v in self.data.get("sensordatavalues", []):
+                        if v.get("value_type") == "interval" and v.get("value"):
+                            self.scan_interval = timedelta(seconds=(int(v.get("value", 60000))/1000))
+                            age = timedelta(seconds=int(self.data.get("age")))
+                            _LOGGER.debug("Updated scan_interval to %s and reduced lastUpdate with %s from %s",
+                                str(self.scan_interval), str(self.data.get("age")), str(datetime.datetime.now()))
             except ValueError:
                 _LOGGER.warning("REST result could not be parsed as JSON")
                 _LOGGER.debug("Erroneous JSON: %s", responseData)
                 self.data = None
-                return
+
+            # Set lastUpdate and adjust it according to the data age value.
+            self.lastUpdate = datetime.datetime.now() - age
