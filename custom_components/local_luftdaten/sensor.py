@@ -184,9 +184,9 @@ class LuftdatenClient(object):
                     for v in self.data.get("sensordatavalues", []):
                         if v.get("value_type") == "interval" and v.get("value"):
                             self.scan_interval = timedelta(seconds=(int(v.get("value", 60000))/1000))
-                            age = timedelta(seconds=int(self.data.get("age")))
+                            age = timedelta(seconds=max(0, int(self.data.get("age"))-1))
                             _LOGGER.debug("Updated scan_interval to %s and reduced lastUpdate with %s from %s",
-                                str(self.scan_interval), str(self.data.get("age")), str(datetime.datetime.now()))
+                                str(self.scan_interval), str(age), str(datetime.datetime.now()))
             except ValueError:
                 _LOGGER.warning("REST result could not be parsed as JSON")
                 _LOGGER.debug("Erroneous JSON: %s", responseData)
