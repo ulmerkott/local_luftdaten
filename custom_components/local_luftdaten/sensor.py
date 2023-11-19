@@ -123,7 +123,8 @@ class LuftdatenSensor(SensorEntity):
         """Get the latest data from REST API and update the state."""
         try:
             await self._rest_client.async_update()
-        except LuftdatenError:
+        except Exception as e:
+            _LOGGER.error("GOT exception when calling async_update: " + str(e))
             return
         parsed_json = self._rest_client.data
 
@@ -183,7 +184,7 @@ class LuftdatenClient(object):
                 raise LuftdatenError
 
             # Parse REST response
-            age = timedelta(seconds=0)
+            age = datetime.timedelta(seconds=0)
             try:
                 parsed_json = json.loads(responseData)
                 if not isinstance(parsed_json, dict):
@@ -196,8 +197,8 @@ class LuftdatenClient(object):
                 if self.data.get("age"):
                     for v in self.data.get("sensordatavalues", []):
                         if v.get("value_type") == "interval" and v.get("value"):
-                            self.scan_interval = timedelta(seconds=(int(v.get("value", 60000))/1000))
-                            age = timedelta(seconds=max(0, int(self.data.get("age"))-1))
+                            self.scan_interval = datetime.timedelta(seconds=(int(v.get("value", 60000))/1000))
+                            age = datetime.timedelta(seconds=max(0, int(self.data.get("age"))-1))
                             _LOGGER.debug("Updated scan_interval to %s and reduced lastUpdate with %s from %s",
                                 str(self.scan_interval), str(age), str(datetime.datetime.now()))
             except ValueError:
